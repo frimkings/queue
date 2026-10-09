@@ -259,7 +259,7 @@
                                 </div>
                             </div>
 
-                            <button wire:click="testVoice" onclick="window.testVoiceAnnouncement('{{ $voiceStyle }}')" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition flex items-center justify-center space-x-2 shrink-0">
+                            <button type="button" onclick="window.testVoiceAnnouncement('{{ $voiceStyle }}')" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition flex items-center justify-center space-x-2 shrink-0">
                                 <span class="text-base">🔊</span>
                                 <span>Play Test Announcement</span>
                             </button>

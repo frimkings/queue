@@ -56,6 +56,8 @@
 
     {{ $slot }}
 
+    <div id="announcement-error" role="alert" hidden class="fixed bottom-4 right-4 z-50 max-w-md rounded-xl bg-red-800 p-4 text-sm text-white shadow-lg"></div>
+
     @livewireScripts
     <script>
         // Global Audio Context Singleton
@@ -202,6 +204,10 @@
             }
             if (!cachedVoices || cachedVoices.length === 0) return null;
 
+            // Installed voices also work when remote speech services are unavailable.
+            const localVoice = cachedVoices.find(voice => voice.localService && /^en[-_]/i.test(voice.lang));
+            if (localVoice) return localVoice;
+
             // 1. Ghanaian / African English
             let v = cachedVoices.find(voice => voice.lang === 'en-GH' || voice.lang.toLowerCase().includes('gh'));
             if (v) return v;
@@ -226,7 +232,13 @@
         // Global active utterances list to prevent Chromium garbage collection
         window._activeUtterances = [];
 
-        function speakTextUtterance(text, onFinished) {
+        function showAnnouncementError(message) {
+            const alert = document.getElementById('announcement-error');
+            alert.textContent = message;
+            alert.hidden = !message;
+        }
+
+        function speakTextUtterance(text, onFinished, useDefaultVoice = false) {
             if (!text || typeof text !== 'string' || text.trim() === '') {
                 if (onFinished) onFinished();
                 return;
@@ -234,6 +246,7 @@
 
             if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not available in this browser.');
+                showAnnouncementError('Spoken announcements are unavailable in this browser. Please use a browser with speech support.');
                 if (onFinished) onFinished();
                 return;
             }
@@ -251,7 +264,8 @@
                 utterance.pitch = 1.0;
                 utterance.lang = 'en-US';
 
-                if (cachedVoices && cachedVoices.length > 0) {
+                updateVoices();
+                if (!useDefaultVoice && cachedVoices && cachedVoices.length > 0) {
                     const voice = selectGhanaianVoice();
                     if (voice) {
                         try {
@@ -262,54 +276,83 @@
                 }
 
                 let isCompleted = false;
-                const finish = () => {
+                let timer;
+                const finish = (error = null) => {
                     if (isCompleted) return;
                     isCompleted = true;
+                    clearTimeout(timer);
                     const index = window._activeUtterances.indexOf(utterance);
                     if (index > -1) window._activeUtterances.splice(index, 1);
+                    if (error) {
+                        window.speechSynthesis.cancel();
+                        if (!useDefaultVoice && error !== 'not-allowed') {
+                            setTimeout(() => speakTextUtterance(text, onFinished, true), 100);
+                            return;
+                        }
+                        showAnnouncementError(error === 'not-allowed'
+                            ? 'Speech was blocked. Click Play Test Announcement to enable spoken announcements.'
+                            : 'Speech could not play. Check that an English speech voice is installed and try Play Test Announcement again.');
+                    }
                     if (onFinished) onFinished();
                 };
 
-                utterance.onend = finish;
+                utterance.onend = () => finish();
                 utterance.onerror = (err) => {
                     console.warn('Utterance notice:', err);
-                    finish();
+                    finish(err.error || 'synthesis-failed');
                 };
 
-                const maxTime = Math.max(3000, cleanText.length * 130);
-                const timer = setTimeout(finish, maxTime);
-                utterance.onend = () => {
+                timer = setTimeout(() => finish('start-timeout'), 5000);
+                utterance.onstart = () => {
                     clearTimeout(timer);
-                    finish();
+                    showAnnouncementError('');
+                    timer = setTimeout(() => {
+                        finish('speech-timeout');
+                    }, Math.max(15000, cleanText.length * 200));
                 };
 
                 window._activeUtterances.push(utterance);
-                window.speechSynthesis.speak(utterance);
+                try {
+                    window.speechSynthesis.speak(utterance);
+                } catch (error) {
+                    finish('synthesis-failed');
+                    return;
+                }
 
                 if (window.speechSynthesis.paused) {
                     window.speechSynthesis.resume();
                 }
             } catch (err) {
                 console.warn('Speech error:', err);
+                showAnnouncementError('Speech could not start. Please reload this page and try Play Test Announcement again.');
                 if (onFinished) onFinished();
             }
         }
 
         // Play Complete Hospital Announcement Sequence (Chime + Speech Queue)
+        const pendingAnnouncements = [];
+        let announcementPlaying = false;
+
         window.playHospitalAnnouncement = function(queue, chime = true) {
             unlockAudioEngine();
             if (!queue || !Array.isArray(queue) || queue.length === 0) return;
+            pendingAnnouncements.push({ queue, chime });
+            playNextAnnouncement();
+        };
 
-            if (window.speechSynthesis && window.speechSynthesis.speaking) {
-                window.speechSynthesis.cancel();
-            }
+        function playNextAnnouncement() {
+            if (announcementPlaying || pendingAnnouncements.length === 0) return;
+            announcementPlaying = true;
+            const { queue, chime } = pendingAnnouncements.shift();
 
             const playSequential = (idx) => {
-                if (idx >= queue.length) return;
+                if (idx >= queue.length) {
+                    announcementPlaying = false;
+                    playNextAnnouncement();
+                    return;
+                }
                 speakTextUtterance(queue[idx], () => {
-                    if (idx + 1 < queue.length) {
-                        setTimeout(() => playSequential(idx + 1), 250);
-                    }
+                    setTimeout(() => playSequential(idx + 1), 250);
                 });
             };
 
@@ -320,7 +363,7 @@
             } else {
                 playSequential(0);
             }
-        };
+        }
 
         // Instant Direct Test Announcement Helper
         window.testVoiceAnnouncement = function(style) {
