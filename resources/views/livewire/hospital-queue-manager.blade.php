@@ -15,7 +15,7 @@
                     </span>
                 </div>
                 <div class="text-[11px] text-slate-400 flex items-center space-x-2">
-                    <span>St. Jude Specialist Hospital</span>
+                    <span>Church of Christ Mission Hospital</span>
                     <span class="text-slate-600">|</span>
                     <span class="text-slate-400 font-mono-num">{{ $currentDateTime }}</span>
                 </div>
@@ -429,7 +429,7 @@
 
                                 @if($lastIssuedTicket)
                                     <div class="bg-white text-slate-900 p-4 rounded-xl font-mono text-center shadow-md space-y-1.5 text-xs">
-                                        <div class="text-xs font-black uppercase">🏥 St. Jude Specialist Hospital</div>
+                                        <div class="text-xs font-black uppercase">🏥 CHURCH OF CHRIST MISSION HOSPITAL</div>
                                         <div class="text-[10px] text-slate-600">Accra Main Pavilion</div>
                                         <div class="border-b border-dashed border-slate-300 my-1"></div>
                                         <div class="text-3xl font-black text-blue-700">{{ $lastIssuedTicket['ticket'] }}</div>
@@ -708,7 +708,7 @@
                                 +
                             </div>
                             <div>
-                                <h1 class="text-xl md:text-2xl font-black text-white tracking-tight">ST. JUDE SPECIALIST HOSPITAL</h1>
+                                <h1 class="text-xl md:text-2xl font-black text-white tracking-tight">CHURCH OF CHRIST MISSION HOSPITAL</h1>
                                 <div class="text-xs text-slate-400 flex items-center space-x-3 mt-0.5">
                                     <span>CENTRAL WAITING PAVILION</span>
                                     <span>•</span>
@@ -830,7 +830,7 @@
                         <div class="flex items-center justify-between pb-3 border-b border-slate-800/80">
                             <div class="flex items-center space-x-2">
                                 <div class="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-xs">+</div>
-                                <span class="text-xs font-extrabold text-white">St. Jude Hospital</span>
+                                <span class="text-xs font-extrabold text-white">Church of Christ Mission Hospital</span>
                             </div>
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 flex items-center space-x-1">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
@@ -1213,7 +1213,7 @@
                 </div>
 
                 <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2 font-mono">
-                    <div class="text-[10px] text-slate-500">From: ST-JUDE-HOSPITAL</div>
+                    <div class="text-[10px] text-slate-500">From: CHURCH-OF-CHRIST-HOSPITAL</div>
                     <div class="text-white">"Hello! Ticket <strong>{{ $mobileTrackingTicketNumber }}</strong> is now #2 in queue for Doctor Consultation. Please proceed near Consultation Room 101."</div>
                 </div>
 
@@ -1231,7 +1231,7 @@
                 <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div>
                         <h3 class="text-base font-bold text-white">End-of-Day Shift Handover Report</h3>
-                        <p class="text-xs text-slate-400">Date: {{ now()->format('l, d F Y') }} · St. Jude Specialist Hospital</p>
+                        <p class="text-xs text-slate-400">Date: {{ now()->format('l, d F Y') }} · Church of Christ Mission Hospital</p>
                     </div>
                     <button wire:click="$set('dailyReportModalOpen', false)" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
                 </div>
@@ -1297,7 +1297,7 @@
     <!-- Hidden 80mm Thermal Receipt Print Layout -->
     <div id="thermal-print-slip" style="display:none;">
         <div style="font-family: monospace; text-align: center; font-size: 12px; line-height: 1.4; color: #000;">
-            <div style="font-size: 14px; font-weight: bold;">🏥 ST. JUDE SPECIALIST HOSPITAL</div>
+            <div style="font-size: 14px; font-weight: bold;">🏥 CHURCH OF CHRIST MISSION HOSPITAL</div>
             <div style="font-size: 10px;">Accra Central Main Pavilion</div>
             <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
             <div style="font-size: 26px; font-weight: 900; margin: 4px 0;">{{ $printSlipData['ticket'] ?? $lastIssuedTicket['ticket'] ?? 'OPD-001' }}</div>
