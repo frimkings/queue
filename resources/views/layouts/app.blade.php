@@ -56,8 +56,6 @@
 
     {{ $slot }}
 
-    <div id="announcement-error" role="alert" hidden class="fixed bottom-4 right-4 z-50 max-w-md rounded-xl bg-red-800 p-4 text-sm text-white shadow-lg"></div>
-
     @livewireScripts
     <script>
         // Global Audio Context Singleton
@@ -204,10 +202,6 @@
             }
             if (!cachedVoices || cachedVoices.length === 0) return null;
 
-            // Installed voices also work when remote speech services are unavailable.
-            const localVoice = cachedVoices.find(voice => voice.localService && /^en[-_]/i.test(voice.lang));
-            if (localVoice) return localVoice;
-
             // 1. Ghanaian / African English
             let v = cachedVoices.find(voice => voice.lang === 'en-GH' || voice.lang.toLowerCase().includes('gh'));
             if (v) return v;
@@ -218,35 +212,28 @@
             v = cachedVoices.find(voice => voice.lang === 'en-ZA' || voice.name.toLowerCase().includes('south africa'));
             if (v) return v;
 
-            // 2. British / Natural Female English
+            // 2. British / Natural English
             v = cachedVoices.find(voice => voice.lang.startsWith('en-GB') && (voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Female')));
             if (v) return v;
 
             v = cachedVoices.find(voice => voice.lang.startsWith('en-GB'));
             if (v) return v;
 
-            // 3. Fallback
-            return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
+            // 3. Any English voice
+            return cachedVoices.find(voice => voice.lang.startsWith('en')) || null;
         }
 
         // Global active utterances list to prevent Chromium garbage collection
         window._activeUtterances = [];
 
-        function showAnnouncementError(message) {
-            const alert = document.getElementById('announcement-error');
-            alert.textContent = message;
-            alert.hidden = !message;
-        }
-
-        function speakTextUtterance(text, onFinished, useDefaultVoice = false) {
-            if (!text || typeof text !== 'string' || text.trim() === '') {
+        function speakTextUtterance(text, onFinished) {
+            if (!text || typeof text !== 'string' || !text.trim()) {
                 if (onFinished) onFinished();
                 return;
             }
 
             if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not available in this browser.');
-                showAnnouncementError('Spoken announcements are unavailable in this browser. Please use a browser with speech support.');
                 if (onFinished) onFinished();
                 return;
             }
@@ -264,8 +251,7 @@
                 utterance.pitch = 1.0;
                 utterance.lang = 'en-US';
 
-                updateVoices();
-                if (!useDefaultVoice && cachedVoices && cachedVoices.length > 0) {
+                if (cachedVoices && cachedVoices.length > 0) {
                     const voice = selectGhanaianVoice();
                     if (voice) {
                         try {
@@ -276,55 +262,32 @@
                 }
 
                 let isCompleted = false;
-                let timer;
-                const finish = (error = null) => {
+                const finish = () => {
                     if (isCompleted) return;
                     isCompleted = true;
-                    clearTimeout(timer);
                     const index = window._activeUtterances.indexOf(utterance);
                     if (index > -1) window._activeUtterances.splice(index, 1);
-                    if (error) {
-                        window.speechSynthesis.cancel();
-                        if (!useDefaultVoice && error !== 'not-allowed') {
-                            setTimeout(() => speakTextUtterance(text, onFinished, true), 100);
-                            return;
-                        }
-                        showAnnouncementError(error === 'not-allowed'
-                            ? 'Speech was blocked. Click Play Test Announcement to enable spoken announcements.'
-                            : 'Speech could not play. Check that an English speech voice is installed and try Play Test Announcement again.');
-                    }
                     if (onFinished) onFinished();
                 };
 
-                utterance.onend = () => finish();
+                utterance.onend = finish;
                 utterance.onerror = (err) => {
                     console.warn('Utterance notice:', err);
-                    finish(err.error || 'synthesis-failed');
+                    finish();
                 };
 
-                timer = setTimeout(() => finish('start-timeout'), 5000);
-                utterance.onstart = () => {
-                    clearTimeout(timer);
-                    showAnnouncementError('');
-                    timer = setTimeout(() => {
-                        finish('speech-timeout');
-                    }, Math.max(15000, cleanText.length * 200));
-                };
+                // Safety timeout in case onend never fires (mobile browsers)
+                const maxTime = Math.max(5000, cleanText.length * 150);
+                setTimeout(finish, maxTime);
 
                 window._activeUtterances.push(utterance);
-                try {
-                    window.speechSynthesis.speak(utterance);
-                } catch (error) {
-                    finish('synthesis-failed');
-                    return;
-                }
+                window.speechSynthesis.speak(utterance);
 
                 if (window.speechSynthesis.paused) {
                     window.speechSynthesis.resume();
                 }
             } catch (err) {
                 console.warn('Speech error:', err);
-                showAnnouncementError('Speech could not start. Please reload this page and try Play Test Announcement again.');
                 if (onFinished) onFinished();
             }
         }
