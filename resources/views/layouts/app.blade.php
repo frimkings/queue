@@ -58,15 +58,38 @@
 
     @livewireScripts
     <script>
+        // Global Audio Context (Singleton for browser autoplay unlock)
+        let globalAudioCtx = null;
+        function getAudioContext() {
+            if (!globalAudioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    globalAudioCtx = new AudioContext();
+                }
+            }
+            if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+                globalAudioCtx.resume();
+            }
+            return globalAudioCtx;
+        }
+
+        // Unlock audio on first user gesture
+        document.addEventListener('click', () => {
+            getAudioContext();
+            if (window.speechSynthesis) {
+                window.speechSynthesis.resume();
+            }
+        }, { once: true });
+
         // Web Audio API Hospital PA Chime (Ding-Dong 2-Tone Bell)
         function playHospitalChime(callback) {
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) {
+                const ctx = getAudioContext();
+                if (!ctx) {
                     if (callback) callback();
                     return;
                 }
-                const ctx = new AudioContext();
+
                 const now = ctx.currentTime;
 
                 // Tone 1: 587.33 Hz (D5)
@@ -76,92 +99,144 @@
                 osc1.frequency.setValueAtTime(587.33, now);
                 gain1.gain.setValueAtTime(0, now);
                 gain1.gain.linearRampToValueAtTime(0.35, now + 0.05);
-                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
                 osc1.connect(gain1);
                 gain1.connect(ctx.destination);
                 osc1.start(now);
-                osc1.stop(now + 0.65);
+                osc1.stop(now + 0.6);
 
                 // Tone 2: 880 Hz (A5)
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
                 osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(880.0, now + 0.3);
-                gain2.gain.setValueAtTime(0, now + 0.3);
-                gain2.gain.linearRampToValueAtTime(0.4, now + 0.35);
-                gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+                osc2.frequency.setValueAtTime(880.0, now + 0.28);
+                gain2.gain.setValueAtTime(0, now + 0.28);
+                gain2.gain.linearRampToValueAtTime(0.4, now + 0.33);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
                 osc2.connect(gain2);
                 gain2.connect(ctx.destination);
-                osc2.start(now + 0.3);
-                osc2.stop(now + 1.15);
+                osc2.start(now + 0.28);
+                osc2.stop(now + 1.0);
 
                 setTimeout(() => {
                     if (callback) callback();
-                }, 900);
+                }, 800);
             } catch (e) {
                 console.warn('Audio chime error:', e);
                 if (callback) callback();
             }
         }
 
-        // Find Best Ghanaian / West African / British English Voice
-        function selectGhanaianVoice() {
-            const voices = window.speechSynthesis.getVoices();
-            if (!voices || voices.length === 0) return null;
+        // Voice Caching & Selector
+        let cachedVoices = [];
+        function updateVoices() {
+            if (window.speechSynthesis) {
+                cachedVoices = window.speechSynthesis.getVoices() || [];
+            }
+        }
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            updateVoices();
+            window.speechSynthesis.onvoiceschanged = updateVoices;
+        }
 
-            // 1. Explicit Ghanaian English
-            let v = voices.find(voice => voice.lang === 'en-GH' || voice.lang.toLowerCase().includes('gh'));
+        function selectGhanaianVoice() {
+            if (!cachedVoices || cachedVoices.length === 0) {
+                updateVoices();
+            }
+            if (!cachedVoices || cachedVoices.length === 0) return null;
+
+            // 1. Ghanaian English
+            let v = cachedVoices.find(voice => voice.lang === 'en-GH' || voice.lang.toLowerCase().includes('gh'));
             if (v) return v;
 
             // 2. West African English (en-NG)
-            v = voices.find(voice => voice.lang === 'en-NG' || voice.name.toLowerCase().includes('nigeria') || voice.lang.toLowerCase().includes('ng'));
+            v = cachedVoices.find(voice => voice.lang === 'en-NG' || voice.name.toLowerCase().includes('nigeria') || voice.lang.toLowerCase().includes('ng'));
             if (v) return v;
 
             // 3. African English (en-ZA)
-            v = voices.find(voice => voice.lang === 'en-ZA' || voice.name.toLowerCase().includes('south africa'));
+            v = cachedVoices.find(voice => voice.lang === 'en-ZA' || voice.name.toLowerCase().includes('south africa'));
             if (v) return v;
 
-            // 4. British / Commonwealth English (Natural / Female / Google UK)
-            v = voices.find(voice => voice.lang === 'en-GB' && (voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Female') || voice.name.includes('Hazel') || voice.name.includes('Susan')));
+            // 4. British / Commonwealth English (Natural / Female)
+            v = cachedVoices.find(voice => voice.lang.startsWith('en-GB') && (voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Female')));
             if (v) return v;
 
-            v = voices.find(voice => voice.lang.startsWith('en-GB'));
+            v = cachedVoices.find(voice => voice.lang.startsWith('en-GB'));
             if (v) return v;
 
-            return voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+            // 5. Any English voice
+            return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
         }
 
         // Audio Text-to-Speech Announcement Listener for Livewire (Handles Multi-Language Dual Queues)
         window.addEventListener('announce-call', event => {
-            const data = event.detail[0] || event.detail;
+            // Normalize Livewire 3/4 detail payload
+            let data = event.detail;
+            if (Array.isArray(data) && data.length > 0) {
+                data = data[0];
+            } else if (data && data.data) {
+                data = data.data;
+            }
             if (!data) return;
 
-            const textQueue = data.queue && data.queue.length > 0 ? data.queue : [data.text];
+            const textQueue = data.queue && Array.isArray(data.queue) && data.queue.length > 0 
+                ? data.queue 
+                : [data.text || ''];
+
             if (textQueue.length === 0 || !textQueue[0]) return;
 
+            if (!window.speechSynthesis) {
+                console.warn('Speech synthesis not supported in this browser.');
+                return;
+            }
+
+            // Chromium bug fix: resume before and after cancel
             window.speechSynthesis.cancel();
+            window.speechSynthesis.resume();
 
             const playQueue = (queueIndex) => {
                 if (queueIndex >= textQueue.length) return;
 
                 const textToSpeak = textQueue[queueIndex];
+                if (!textToSpeak) return;
+
                 const utterance = new SpeechSynthesisUtterance(textToSpeak);
                 const voice = selectGhanaianVoice();
                 if (voice) {
                     utterance.voice = voice;
-                    utterance.lang = voice.lang;
+                    utterance.lang = voice.lang || 'en-GB';
+                } else {
+                    utterance.lang = 'en-GB';
                 }
+
                 utterance.rate = 0.88;
                 utterance.pitch = 1.02;
                 utterance.volume = 1;
 
-                utterance.onend = () => {
+                let hasEnded = false;
+                const nextStep = () => {
+                    if (hasEnded) return;
+                    hasEnded = true;
                     if (queueIndex + 1 < textQueue.length) {
-                        setTimeout(() => playQueue(queueIndex + 1), 450);
+                        setTimeout(() => playQueue(queueIndex + 1), 400);
                     }
                 };
 
+                utterance.onend = nextStep;
+                utterance.onerror = (err) => {
+                    console.warn('Speech utterance error:', err);
+                    nextStep();
+                };
+
+                // Safety timer for Chromium speech synthesis freeze bug
+                setTimeout(() => {
+                    if (!hasEnded && window.speechSynthesis.speaking) {
+                        window.speechSynthesis.resume();
+                    }
+                }, 4000);
+
                 window.speechSynthesis.speak(utterance);
+                window.speechSynthesis.resume();
             };
 
             if (data.chime !== false) {
