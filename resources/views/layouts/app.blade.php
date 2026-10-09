@@ -168,9 +168,58 @@
             return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
         }
 
-        // Audio Text-to-Speech Announcement Listener for Livewire (Handles Multi-Language Dual Queues)
+        // Store global reference to prevent Chromium garbage collection of active utterances
+        window._activeUtterances = [];
+
+        function speakTextUtterance(text, onFinished) {
+            try {
+                if (!window.speechSynthesis) return;
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                window._activeUtterances.push(utterance);
+
+                const voice = selectGhanaianVoice();
+                if (voice) {
+                    try { utterance.voice = voice; } catch(e) {}
+                }
+                utterance.lang = (voice && voice.lang) ? voice.lang : 'en-US';
+                utterance.rate = 0.90;
+                utterance.pitch = 1.0;
+                utterance.volume = 1;
+
+                let finished = false;
+                const complete = () => {
+                    if (finished) return;
+                    finished = true;
+                    // remove from active reference
+                    const idx = window._activeUtterances.indexOf(utterance);
+                    if (idx > -1) window._activeUtterances.splice(idx, 1);
+                    if (onFinished) onFinished();
+                };
+
+                utterance.onend = complete;
+                utterance.onerror = (e) => {
+                    console.warn('Utterance error:', e);
+                    complete();
+                };
+
+                // Fallback timeout in case browser never fires onend
+                setTimeout(() => {
+                    if (!finished && window.speechSynthesis.speaking) {
+                        window.speechSynthesis.resume();
+                    }
+                }, 3000);
+
+                window.speechSynthesis.speak(utterance);
+                window.speechSynthesis.resume();
+            } catch (err) {
+                console.error('Speech synthesis error:', err);
+                if (onFinished) onFinished();
+            }
+        }
+
+        // Audio Announcement Dispatcher
         window.addEventListener('announce-call', event => {
-            // Normalize Livewire 3/4 detail payload
             let data = event.detail;
             if (Array.isArray(data) && data.length > 0) {
                 data = data[0];
@@ -185,64 +234,27 @@
 
             if (textQueue.length === 0 || !textQueue[0]) return;
 
-            if (!window.speechSynthesis) {
-                console.warn('Speech synthesis not supported in this browser.');
-                return;
+            // Clear any stuck state
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
             }
 
-            // Chromium bug fix: resume before and after cancel
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.resume();
-
-            const playQueue = (queueIndex) => {
-                if (queueIndex >= textQueue.length) return;
-
-                const textToSpeak = textQueue[queueIndex];
-                if (!textToSpeak) return;
-
-                const utterance = new SpeechSynthesisUtterance(textToSpeak);
-                const voice = selectGhanaianVoice();
-                if (voice) {
-                    utterance.voice = voice;
-                    utterance.lang = voice.lang || 'en-GB';
-                } else {
-                    utterance.lang = 'en-GB';
-                }
-
-                utterance.rate = 0.88;
-                utterance.pitch = 1.02;
-                utterance.volume = 1;
-
-                let hasEnded = false;
-                const nextStep = () => {
-                    if (hasEnded) return;
-                    hasEnded = true;
-                    if (queueIndex + 1 < textQueue.length) {
-                        setTimeout(() => playQueue(queueIndex + 1), 400);
+            const playSequential = (idx) => {
+                if (idx >= textQueue.length) return;
+                speakTextUtterance(textQueue[idx], () => {
+                    if (idx + 1 < textQueue.length) {
+                        setTimeout(() => playSequential(idx + 1), 350);
                     }
-                };
-
-                utterance.onend = nextStep;
-                utterance.onerror = (err) => {
-                    console.warn('Speech utterance error:', err);
-                    nextStep();
-                };
-
-                // Safety timer for Chromium speech synthesis freeze bug
-                setTimeout(() => {
-                    if (!hasEnded && window.speechSynthesis.speaking) {
-                        window.speechSynthesis.resume();
-                    }
-                }, 4000);
-
-                window.speechSynthesis.speak(utterance);
-                window.speechSynthesis.resume();
+                });
             };
 
             if (data.chime !== false) {
-                playHospitalChime(() => playQueue(0));
+                playHospitalChime(() => {
+                    playSequential(0);
+                });
             } else {
-                playQueue(0);
+                playSequential(0);
             }
         });
 

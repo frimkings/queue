@@ -561,8 +561,8 @@ class HospitalQueueManager extends Component
         $twiTicket = $this->twiPhoneticTicket($ticketNumber);
 
         $englishText = "Attention please. Ticket {$formattedTicket}. Kindly proceed to {$deptName}, {$station}. Thank you.";
-        $twiText = "Mepaakyɛw, ticket nɔmba {$twiTicket}. Yɛsrɛ wo kɔ {$deptName}, {$station}. Medaase.";
-        $gaText = "Ofainɛ, ticket nɔmba {$formattedTicket}. Yaa {$deptName}, {$station}. Oyiwaladɔŋŋ.";
+        $twiText = "Mepaakyew, ticket nomba {$twiTicket}. Yesre wo ko {$deptName}, {$station}. Medaase.";
+        $gaText = "Ofaine, ticket nomba {$formattedTicket}. Yaa {$deptName}, {$station}. Oyiwaladong.";
         $hausaText = "Dan Allah, ticket lamba {$formattedTicket}. Ka je {$deptName}, {$station}. Na gode.";
 
         $calloutQueue = [];
@@ -609,12 +609,12 @@ class HospitalQueueManager extends Component
             '0' => 'hwee',
             '1' => 'baako',
             '2' => 'mmienu',
-            '3' => 'mmiɛnsa',
-            '4' => 'ɛnan',
+            '3' => 'mmiensa',
+            '4' => 'enan',
             '5' => 'nnum',
             '6' => 'nsia',
             '7' => 'nson',
-            '8' => 'nwɔtwe',
+            '8' => 'nwotwe',
             '9' => 'nkron',
         ];
 
