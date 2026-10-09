@@ -89,8 +89,40 @@
         window.addEventListener('touchstart', unlockAudioEngine, { passive: true });
         window.addEventListener('keydown', unlockAudioEngine, { passive: true });
 
-        // Web Audio API Hospital PA Chime (Ding-Dong 2-Tone Bell: D5 -> A5)
+        // Play Hospital Chime (HTML5 Audio /audio/chime.wav + Web Audio Synth Fallback)
         function playHospitalChime(onDone) {
+            let done = false;
+            const finish = () => {
+                if (!done) {
+                    done = true;
+                    if (onDone) onDone();
+                }
+            };
+
+            // Attempt 1: Native HTML5 Audio
+            try {
+                const audio = new Audio('/audio/chime.wav');
+                audio.volume = 1.0;
+                audio.onended = finish;
+                audio.onerror = () => {
+                    playSyntheticChime(finish);
+                };
+                const p = audio.play();
+                if (p !== undefined) {
+                    p.then(() => {
+                        // Playing successfully
+                    }).catch(() => {
+                        playSyntheticChime(finish);
+                    });
+                }
+                setTimeout(finish, 1350);
+                return;
+            } catch (e) {
+                playSyntheticChime(finish);
+            }
+        }
+
+        function playSyntheticChime(onDone) {
             try {
                 const ctx = getAudioContext();
                 if (!ctx) {
@@ -102,27 +134,27 @@
                     try {
                         const now = ctx.currentTime;
 
-                        // Tone 1: 587.33 Hz (D5) - Ding
+                        // Tone 1: D5 (587.33 Hz)
                         const osc1 = ctx.createOscillator();
                         const gain1 = ctx.createGain();
                         osc1.type = 'sine';
                         osc1.frequency.setValueAtTime(587.33, now);
                         gain1.gain.setValueAtTime(0.001, now);
-                        gain1.gain.linearRampToValueAtTime(0.35, now + 0.04);
-                        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+                        gain1.gain.linearRampToValueAtTime(0.4, now + 0.04);
+                        gain1.gain.linearRampToValueAtTime(0.001, now + 0.55);
                         osc1.connect(gain1);
                         gain1.connect(ctx.destination);
                         osc1.start(now);
                         osc1.stop(now + 0.6);
 
-                        // Tone 2: 880.00 Hz (A5) - Dong
+                        // Tone 2: A5 (880.00 Hz)
                         const osc2 = ctx.createOscillator();
                         const gain2 = ctx.createGain();
                         osc2.type = 'sine';
                         osc2.frequency.setValueAtTime(880.0, now + 0.28);
                         gain2.gain.setValueAtTime(0.001, now + 0.28);
-                        gain2.gain.linearRampToValueAtTime(0.4, now + 0.32);
-                        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.95);
+                        gain2.gain.linearRampToValueAtTime(0.45, now + 0.32);
+                        gain2.gain.linearRampToValueAtTime(0.001, now + 0.95);
                         osc2.connect(gain2);
                         gain2.connect(ctx.destination);
                         osc2.start(now + 0.28);
@@ -132,14 +164,13 @@
                             if (onDone) onDone();
                         }, 850);
                     } catch (err) {
-                        console.warn('Chime oscillator error:', err);
+                        console.warn('Synth error:', err);
                         if (onDone) onDone();
                     }
                 };
 
                 if (ctx.state === 'suspended') {
-                    ctx.resume().then(runChime).catch(err => {
-                        console.warn('Audio resume notice:', err);
+                    ctx.resume().then(runChime).catch(() => {
                         if (onDone) onDone();
                     });
                 } else {
@@ -155,7 +186,9 @@
         let cachedVoices = [];
         function updateVoices() {
             if (window.speechSynthesis) {
-                cachedVoices = window.speechSynthesis.getVoices() || [];
+                try {
+                    cachedVoices = window.speechSynthesis.getVoices() || [];
+                } catch(e) {}
             }
         }
         if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -169,26 +202,24 @@
             }
             if (!cachedVoices || cachedVoices.length === 0) return null;
 
-            // 1. Ghanaian English
+            // 1. Ghanaian / African English
             let v = cachedVoices.find(voice => voice.lang === 'en-GH' || voice.lang.toLowerCase().includes('gh'));
             if (v) return v;
 
-            // 2. West African English (en-NG)
             v = cachedVoices.find(voice => voice.lang === 'en-NG' || voice.name.toLowerCase().includes('nigeria') || voice.lang.toLowerCase().includes('ng'));
             if (v) return v;
 
-            // 3. African English (en-ZA)
             v = cachedVoices.find(voice => voice.lang === 'en-ZA' || voice.name.toLowerCase().includes('south africa'));
             if (v) return v;
 
-            // 4. British / Commonwealth English (Natural / Female)
+            // 2. British / Natural Female English
             v = cachedVoices.find(voice => voice.lang.startsWith('en-GB') && (voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Female')));
             if (v) return v;
 
             v = cachedVoices.find(voice => voice.lang.startsWith('en-GB'));
             if (v) return v;
 
-            // 5. Any English voice
+            // 3. Fallback
             return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
         }
 
@@ -208,21 +239,26 @@
             }
 
             try {
-                window.speechSynthesis.resume();
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
 
                 const cleanText = text.replace(/[\n\r\t]+/g, ' ').trim();
                 const utterance = new SpeechSynthesisUtterance(cleanText);
 
                 utterance.volume = 1.0;
-                utterance.rate = 0.88;
+                utterance.rate = 0.90;
                 utterance.pitch = 1.0;
+                utterance.lang = 'en-US';
 
-                const voice = selectGhanaianVoice();
-                if (voice) {
-                    try {
-                        utterance.voice = voice;
-                        utterance.lang = voice.lang || 'en-US';
-                    } catch(e) {}
+                if (cachedVoices && cachedVoices.length > 0) {
+                    const voice = selectGhanaianVoice();
+                    if (voice) {
+                        try {
+                            utterance.voice = voice;
+                            if (voice.lang) utterance.lang = voice.lang;
+                        } catch(e) {}
+                    }
                 }
 
                 let isCompleted = false;
@@ -240,8 +276,7 @@
                     finish();
                 };
 
-                // Fallback max duration timer in case browser event drops
-                const maxTime = Math.max(3000, cleanText.length * 120);
+                const maxTime = Math.max(3000, cleanText.length * 130);
                 const timer = setTimeout(finish, maxTime);
                 utterance.onend = () => {
                     clearTimeout(timer);
@@ -250,7 +285,10 @@
 
                 window._activeUtterances.push(utterance);
                 window.speechSynthesis.speak(utterance);
-                window.speechSynthesis.resume();
+
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
             } catch (err) {
                 console.warn('Speech error:', err);
                 if (onFinished) onFinished();
@@ -262,7 +300,7 @@
             unlockAudioEngine();
             if (!queue || !Array.isArray(queue) || queue.length === 0) return;
 
-            if (window.speechSynthesis) {
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
             }
 
@@ -270,14 +308,14 @@
                 if (idx >= queue.length) return;
                 speakTextUtterance(queue[idx], () => {
                     if (idx + 1 < queue.length) {
-                        setTimeout(() => playSequential(idx + 1), 300);
+                        setTimeout(() => playSequential(idx + 1), 250);
                     }
                 });
             };
 
             if (chime !== false) {
                 playHospitalChime(() => {
-                    playSequential(0);
+                    setTimeout(() => playSequential(0), 100);
                 });
             } else {
                 playSequential(0);
