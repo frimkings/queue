@@ -168,82 +168,70 @@
             return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
         }
 
-        // Store global references
+        // Global active utterances list to prevent Chromium garbage collection
         window._activeUtterances = [];
 
         function speakTextUtterance(text, onFinished) {
-            if (!text || text.trim() === '') {
+            if (!text || typeof text !== 'string' || text.trim() === '') {
                 if (onFinished) onFinished();
                 return;
             }
 
-            let completed = false;
-            const finish = () => {
-                if (completed) return;
-                completed = true;
+            if (!window.speechSynthesis) {
+                console.warn('Speech synthesis not available in this browser.');
                 if (onFinished) onFinished();
-            };
-
-            // 1. Try High-Quality HTML5 Cloud Audio (Works on all devices & OS)
-            try {
-                const encodedText = encodeURIComponent(text.trim());
-                const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en-gb&client=tw-ob&q=${encodedText}`;
-                const audio = new Audio(audioUrl);
-                audio.crossOrigin = 'anonymous';
-
-                audio.onended = finish;
-                audio.onerror = () => {
-                    // Fallback to Web Speech API if cloud audio is blocked
-                    fallbackWebSpeech(text, finish);
-                };
-
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(err => {
-                        console.warn('HTML5 audio play error, trying speech synthesis fallback:', err);
-                        fallbackWebSpeech(text, finish);
-                    });
-                }
                 return;
-            } catch (e) {
-                console.warn('Audio stream error, falling back to Web Speech API:', e);
-                fallbackWebSpeech(text, finish);
             }
-        }
 
-        function fallbackWebSpeech(text, onFinished) {
             try {
-                if (!window.speechSynthesis) {
-                    if (onFinished) onFinished();
-                    return;
-                }
+                // Ensure audio context and speech engine are not paused
+                window.speechSynthesis.resume();
 
-                const utterance = new SpeechSynthesisUtterance(text);
+                const cleanText = text.replace(/[\n\r\t]+/g, ' ').trim();
+                const utterance = new SpeechSynthesisUtterance(cleanText);
                 window._activeUtterances.push(utterance);
 
+                utterance.volume = 1;
+                utterance.rate = 0.88;
+                utterance.pitch = 1.0;
+
+                // Let browser choose its optimal English voice automatically or match lang
                 const voice = selectGhanaianVoice();
                 if (voice) {
-                    try { utterance.voice = voice; } catch(e) {}
+                    try {
+                        utterance.voice = voice;
+                        utterance.lang = voice.lang;
+                    } catch(e) {}
                 }
-                utterance.lang = 'en-US';
-                utterance.rate = 0.90;
-                utterance.pitch = 1.0;
-                utterance.volume = 1;
 
-                utterance.onend = () => {
-                    const idx = window._activeUtterances.indexOf(utterance);
-                    if (idx > -1) window._activeUtterances.splice(idx, 1);
+                let isCompleted = false;
+                const finish = () => {
+                    if (isCompleted) return;
+                    isCompleted = true;
+                    const index = window._activeUtterances.indexOf(utterance);
+                    if (index > -1) window._activeUtterances.splice(index, 1);
                     if (onFinished) onFinished();
                 };
-                utterance.onerror = () => {
-                    const idx = window._activeUtterances.indexOf(utterance);
-                    if (idx > -1) window._activeUtterances.splice(idx, 1);
-                    if (onFinished) onFinished();
+
+                utterance.onend = finish;
+                utterance.onerror = (err) => {
+                    console.warn('Utterance notice:', err);
+                    finish();
                 };
+
+                // Periodic resume interval to fix Chrome background tab speech sleep bug
+                const resumeInterval = setInterval(() => {
+                    if (!isCompleted && window.speechSynthesis.speaking) {
+                        window.speechSynthesis.resume();
+                    } else {
+                        clearInterval(resumeInterval);
+                    }
+                }, 1000);
 
                 window.speechSynthesis.speak(utterance);
                 window.speechSynthesis.resume();
             } catch (err) {
+                console.error('Speech error:', err);
                 if (onFinished) onFinished();
             }
         }
