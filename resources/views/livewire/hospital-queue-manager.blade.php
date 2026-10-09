@@ -146,7 +146,7 @@
                         <span>Audio PA System</span>
                         <span class="text-blue-400 font-bold">Twi / Eng Ready</span>
                     </div>
-                    <button wire:click="testVoice" class="w-full mt-2 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center justify-center space-x-1.5 border border-blue-500/30">
+                    <button wire:click="testVoice" onclick="window.testVoiceAnnouncement('{{ $voiceStyle }}')" class="w-full mt-2 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center justify-center space-x-1.5 border border-blue-500/30">
                         <span>🔊</span>
                         <span>Test Twi Audio Announcement</span>
                     </button>
@@ -259,7 +259,7 @@
                                 </div>
                             </div>
 
-                            <button wire:click="testVoice" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition flex items-center justify-center space-x-2 shrink-0">
+                            <button wire:click="testVoice" onclick="window.testVoiceAnnouncement('{{ $voiceStyle }}')" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition flex items-center justify-center space-x-2 shrink-0">
                                 <span class="text-base">🔊</span>
                                 <span>Play Test Announcement</span>
                             </button>
@@ -802,7 +802,7 @@
                                     <option value="ghanaian_local" class="bg-slate-900 text-white">Ghanaian Courtesy</option>
                                     <option value="standard" class="bg-slate-900 text-white">Standard</option>
                                 </select>
-                                <button wire:click="testVoice" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500 transition shadow-md shadow-blue-600/30">
+                                <button wire:click="testVoice" onclick="window.testVoiceAnnouncement('{{ $voiceStyle }}')" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500 transition shadow-md shadow-blue-600/30">
                                     🔊 Test
                                 </button>
                             </div>

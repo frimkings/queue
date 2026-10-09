@@ -58,13 +58,13 @@
 
     @livewireScripts
     <script>
-        // Global Audio Context (Singleton for browser autoplay unlock)
+        // Global Audio Context Singleton
         let globalAudioCtx = null;
         function getAudioContext() {
-            if (!globalAudioCtx) {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) {
-                    globalAudioCtx = new AudioContext();
+            if (!globalAudioCtx || globalAudioCtx.state === 'closed') {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) {
+                    globalAudioCtx = new AudioCtx();
                 }
             }
             if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
@@ -73,61 +73,85 @@
             return globalAudioCtx;
         }
 
-        // Unlock audio on first user gesture
-        document.addEventListener('click', () => {
-            getAudioContext();
-            if (window.speechSynthesis) {
-                window.speechSynthesis.resume();
-            }
-        }, { once: true });
+        // Global User Gesture Audio Unlock
+        function unlockAudioEngine() {
+            try {
+                const ctx = getAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                if (window.speechSynthesis && window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
+            } catch (e) {}
+        }
+        window.addEventListener('click', unlockAudioEngine, { passive: true });
+        window.addEventListener('touchstart', unlockAudioEngine, { passive: true });
+        window.addEventListener('keydown', unlockAudioEngine, { passive: true });
 
-        // Web Audio API Hospital PA Chime (Ding-Dong 2-Tone Bell)
-        function playHospitalChime(callback) {
+        // Web Audio API Hospital PA Chime (Ding-Dong 2-Tone Bell: D5 -> A5)
+        function playHospitalChime(onDone) {
             try {
                 const ctx = getAudioContext();
                 if (!ctx) {
-                    if (callback) callback();
+                    if (onDone) onDone();
                     return;
                 }
 
-                const now = ctx.currentTime;
+                const runChime = () => {
+                    try {
+                        const now = ctx.currentTime;
 
-                // Tone 1: 587.33 Hz (D5)
-                const osc1 = ctx.createOscillator();
-                const gain1 = ctx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(587.33, now);
-                gain1.gain.setValueAtTime(0, now);
-                gain1.gain.linearRampToValueAtTime(0.35, now + 0.05);
-                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc1.start(now);
-                osc1.stop(now + 0.6);
+                        // Tone 1: 587.33 Hz (D5) - Ding
+                        const osc1 = ctx.createOscillator();
+                        const gain1 = ctx.createGain();
+                        osc1.type = 'sine';
+                        osc1.frequency.setValueAtTime(587.33, now);
+                        gain1.gain.setValueAtTime(0.001, now);
+                        gain1.gain.linearRampToValueAtTime(0.35, now + 0.04);
+                        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+                        osc1.connect(gain1);
+                        gain1.connect(ctx.destination);
+                        osc1.start(now);
+                        osc1.stop(now + 0.6);
 
-                // Tone 2: 880 Hz (A5)
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(880.0, now + 0.28);
-                gain2.gain.setValueAtTime(0, now + 0.28);
-                gain2.gain.linearRampToValueAtTime(0.4, now + 0.33);
-                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.start(now + 0.28);
-                osc2.stop(now + 1.0);
+                        // Tone 2: 880.00 Hz (A5) - Dong
+                        const osc2 = ctx.createOscillator();
+                        const gain2 = ctx.createGain();
+                        osc2.type = 'sine';
+                        osc2.frequency.setValueAtTime(880.0, now + 0.28);
+                        gain2.gain.setValueAtTime(0.001, now + 0.28);
+                        gain2.gain.linearRampToValueAtTime(0.4, now + 0.32);
+                        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.95);
+                        osc2.connect(gain2);
+                        gain2.connect(ctx.destination);
+                        osc2.start(now + 0.28);
+                        osc2.stop(now + 1.0);
 
-                setTimeout(() => {
-                    if (callback) callback();
-                }, 800);
+                        setTimeout(() => {
+                            if (onDone) onDone();
+                        }, 850);
+                    } catch (err) {
+                        console.warn('Chime oscillator error:', err);
+                        if (onDone) onDone();
+                    }
+                };
+
+                if (ctx.state === 'suspended') {
+                    ctx.resume().then(runChime).catch(err => {
+                        console.warn('Audio resume notice:', err);
+                        if (onDone) onDone();
+                    });
+                } else {
+                    runChime();
+                }
             } catch (e) {
                 console.warn('Audio chime error:', e);
-                if (callback) callback();
+                if (onDone) onDone();
             }
         }
 
-        // Voice Caching & Selector
+        // Voice Caching & Selection
         let cachedVoices = [];
         function updateVoices() {
             if (window.speechSynthesis) {
@@ -177,30 +201,27 @@
                 return;
             }
 
-            if (!window.speechSynthesis) {
+            if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not available in this browser.');
                 if (onFinished) onFinished();
                 return;
             }
 
             try {
-                // Ensure audio context and speech engine are not paused
                 window.speechSynthesis.resume();
 
                 const cleanText = text.replace(/[\n\r\t]+/g, ' ').trim();
                 const utterance = new SpeechSynthesisUtterance(cleanText);
-                window._activeUtterances.push(utterance);
 
-                utterance.volume = 1;
+                utterance.volume = 1.0;
                 utterance.rate = 0.88;
                 utterance.pitch = 1.0;
 
-                // Let browser choose its optimal English voice automatically or match lang
                 const voice = selectGhanaianVoice();
                 if (voice) {
                     try {
                         utterance.voice = voice;
-                        utterance.lang = voice.lang;
+                        utterance.lang = voice.lang || 'en-US';
                     } catch(e) {}
                 }
 
@@ -219,29 +240,87 @@
                     finish();
                 };
 
-                // Periodic resume interval to fix Chrome background tab speech sleep bug
-                const resumeInterval = setInterval(() => {
-                    if (!isCompleted && window.speechSynthesis.speaking) {
-                        window.speechSynthesis.resume();
-                    } else {
-                        clearInterval(resumeInterval);
-                    }
-                }, 1000);
+                // Fallback max duration timer in case browser event drops
+                const maxTime = Math.max(3000, cleanText.length * 120);
+                const timer = setTimeout(finish, maxTime);
+                utterance.onend = () => {
+                    clearTimeout(timer);
+                    finish();
+                };
 
+                window._activeUtterances.push(utterance);
                 window.speechSynthesis.speak(utterance);
                 window.speechSynthesis.resume();
             } catch (err) {
-                console.error('Speech error:', err);
+                console.warn('Speech error:', err);
                 if (onFinished) onFinished();
             }
         }
 
-        // Audio Announcement Dispatcher
+        // Play Complete Hospital Announcement Sequence (Chime + Speech Queue)
+        window.playHospitalAnnouncement = function(queue, chime = true) {
+            unlockAudioEngine();
+            if (!queue || !Array.isArray(queue) || queue.length === 0) return;
+
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+
+            const playSequential = (idx) => {
+                if (idx >= queue.length) return;
+                speakTextUtterance(queue[idx], () => {
+                    if (idx + 1 < queue.length) {
+                        setTimeout(() => playSequential(idx + 1), 300);
+                    }
+                });
+            };
+
+            if (chime !== false) {
+                playHospitalChime(() => {
+                    playSequential(0);
+                });
+            } else {
+                playSequential(0);
+            }
+        };
+
+        // Instant Direct Test Announcement Helper
+        window.testVoiceAnnouncement = function(style) {
+            unlockAudioEngine();
+            const phrases = {
+                'twi_dual': [
+                    'Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you.',
+                    'Mepaakyew, ticket nomba O, P, D, hwee, nnum, nkron. Yesre wo ko Consultation Room 101. Medaase.'
+                ],
+                'twi_only': [
+                    'Mepaakyew, ticket nomba O, P, D, hwee, nnum, nkron. Yesre wo ko Consultation Room 101. Medaase.'
+                ],
+                'ga_dual': [
+                    'Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you.',
+                    'Ofaine, ticket nomba O, P, D, zero, five, nine. Yaa Consultation Room 101. Oyiwaladong.'
+                ],
+                'hausa_dual': [
+                    'Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you.',
+                    'Dan Allah, ticket lamba O, P, D, zero, five, nine. Ka je Consultation Room 101. Na gode.'
+                ],
+                'ghanaian_local': [
+                    'Agoo! Attention please. Ticket number O, P, D, zero, five, nine. Kindly report to Consultation Room 101. Medaase.'
+                ],
+                'standard': [
+                    'Attention please. Ticket OPD-059. Please proceed to Consultation Room 101. Thank you.'
+                ]
+            };
+            const s = style || window._currentVoiceStyle || 'twi_dual';
+            const queue = phrases[s] || phrases['twi_dual'];
+            window.playHospitalAnnouncement(queue, true);
+        };
+
+        // Audio Announcement Livewire Dispatcher Listener
         window.addEventListener('announce-call', event => {
             let data = event.detail;
             if (Array.isArray(data) && data.length > 0) {
                 data = data[0];
-            } else if (data && data.data) {
+            } else if (data && data.data && typeof data.data === 'object' && !data.queue && !data.text) {
                 data = data.data;
             }
             if (!data) return;
@@ -252,27 +331,7 @@
 
             if (textQueue.length === 0 || !textQueue[0]) return;
 
-            // Clear any stuck browser speech state
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
-
-            const playSequential = (idx) => {
-                if (idx >= textQueue.length) return;
-                speakTextUtterance(textQueue[idx], () => {
-                    if (idx + 1 < textQueue.length) {
-                        setTimeout(() => playSequential(idx + 1), 300);
-                    }
-                });
-            };
-
-            if (data.chime !== false) {
-                playHospitalChime(() => {
-                    playSequential(0);
-                });
-            } else {
-                playSequential(0);
-            }
+            window.playHospitalAnnouncement(textQueue, data.chime !== false);
         });
 
         // Thermal Print Slip Listener + Dynamic QR Code Generation
