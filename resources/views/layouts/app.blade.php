@@ -168,12 +168,55 @@
             return cachedVoices.find(voice => voice.lang.startsWith('en')) || cachedVoices[0];
         }
 
-        // Store global reference to prevent Chromium garbage collection of active utterances
+        // Store global references
         window._activeUtterances = [];
 
         function speakTextUtterance(text, onFinished) {
+            if (!text || text.trim() === '') {
+                if (onFinished) onFinished();
+                return;
+            }
+
+            let completed = false;
+            const finish = () => {
+                if (completed) return;
+                completed = true;
+                if (onFinished) onFinished();
+            };
+
+            // 1. Try High-Quality HTML5 Cloud Audio (Works on all devices & OS)
             try {
-                if (!window.speechSynthesis) return;
+                const encodedText = encodeURIComponent(text.trim());
+                const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en-gb&client=tw-ob&q=${encodedText}`;
+                const audio = new Audio(audioUrl);
+                audio.crossOrigin = 'anonymous';
+
+                audio.onended = finish;
+                audio.onerror = () => {
+                    // Fallback to Web Speech API if cloud audio is blocked
+                    fallbackWebSpeech(text, finish);
+                };
+
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.warn('HTML5 audio play error, trying speech synthesis fallback:', err);
+                        fallbackWebSpeech(text, finish);
+                    });
+                }
+                return;
+            } catch (e) {
+                console.warn('Audio stream error, falling back to Web Speech API:', e);
+                fallbackWebSpeech(text, finish);
+            }
+        }
+
+        function fallbackWebSpeech(text, onFinished) {
+            try {
+                if (!window.speechSynthesis) {
+                    if (onFinished) onFinished();
+                    return;
+                }
 
                 const utterance = new SpeechSynthesisUtterance(text);
                 window._activeUtterances.push(utterance);
@@ -182,38 +225,25 @@
                 if (voice) {
                     try { utterance.voice = voice; } catch(e) {}
                 }
-                utterance.lang = (voice && voice.lang) ? voice.lang : 'en-US';
+                utterance.lang = 'en-US';
                 utterance.rate = 0.90;
                 utterance.pitch = 1.0;
                 utterance.volume = 1;
 
-                let finished = false;
-                const complete = () => {
-                    if (finished) return;
-                    finished = true;
-                    // remove from active reference
+                utterance.onend = () => {
+                    const idx = window._activeUtterances.indexOf(utterance);
+                    if (idx > -1) window._activeUtterances.splice(idx, 1);
+                    if (onFinished) onFinished();
+                };
+                utterance.onerror = () => {
                     const idx = window._activeUtterances.indexOf(utterance);
                     if (idx > -1) window._activeUtterances.splice(idx, 1);
                     if (onFinished) onFinished();
                 };
 
-                utterance.onend = complete;
-                utterance.onerror = (e) => {
-                    console.warn('Utterance error:', e);
-                    complete();
-                };
-
-                // Fallback timeout in case browser never fires onend
-                setTimeout(() => {
-                    if (!finished && window.speechSynthesis.speaking) {
-                        window.speechSynthesis.resume();
-                    }
-                }, 3000);
-
                 window.speechSynthesis.speak(utterance);
                 window.speechSynthesis.resume();
             } catch (err) {
-                console.error('Speech synthesis error:', err);
                 if (onFinished) onFinished();
             }
         }
@@ -234,17 +264,16 @@
 
             if (textQueue.length === 0 || !textQueue[0]) return;
 
-            // Clear any stuck state
+            // Clear any stuck browser speech state
             if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
-                window.speechSynthesis.resume();
             }
 
             const playSequential = (idx) => {
                 if (idx >= textQueue.length) return;
                 speakTextUtterance(textQueue[idx], () => {
                     if (idx + 1 < textQueue.length) {
-                        setTimeout(() => playSequential(idx + 1), 350);
+                        setTimeout(() => playSequential(idx + 1), 300);
                     }
                 });
             };
