@@ -24,10 +24,10 @@
 
         <!-- Right Quick Actions & Staff Pill -->
         <div class="flex items-center space-x-2 sm:space-x-3">
-            <!-- Ghanaian Multi-Language Voice Selector -->
-            <div class="hidden lg:flex items-center space-x-1.5 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-slate-700/80 text-xs">
+            <!-- Ghanaian Multi-Language Voice Selector (Visible on all screens) -->
+            <div class="flex items-center space-x-1.5 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-slate-700/80 text-xs">
                 <span class="text-sm">🇬🇭</span>
-                <select wire:model.live="voiceStyle" class="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer">
+                <select wire:model.live="voiceStyle" class="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer max-w-[140px] sm:max-w-none">
                     <option value="twi_dual" class="bg-slate-900 text-white">English + Akan/Twi Dual</option>
                     <option value="twi_only" class="bg-slate-900 text-white">Akan / Twi Only ("Mepaakyɛw...")</option>
                     <option value="ga_dual" class="bg-slate-900 text-white">English + Ga Dual ("Ofainɛ...")</option>
@@ -36,9 +36,9 @@
                     <option value="ghanaian_local" class="bg-slate-900 text-white">Ghanaian Courtesy (Agoo / Medaase)</option>
                     <option value="standard" class="bg-slate-900 text-white">Standard English</option>
                 </select>
-                <button wire:click="testVoice" title="Play Voice Announcement & Chime" class="px-2 py-0.5 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center space-x-1">
+                <button wire:click="testVoice" title="Play Voice Announcement & Chime" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition flex items-center space-x-1 shadow-md shadow-blue-600/30">
                     <span>🔊</span>
-                    <span>Test</span>
+                    <span>Test Voice</span>
                 </button>
             </div>
 
@@ -136,20 +136,20 @@
                     </button>
                 </div>
 
-                <!-- Footer System Status -->
+                <!-- Footer System Status & Quick Voice Test -->
                 <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 space-y-2 mt-4">
                     <div class="flex items-center justify-between">
                         <span class="font-medium text-slate-300">NHIS Gateway</span>
                         <span class="text-emerald-400 font-bold">ONLINE</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span>Audio Callout (TTS)</span>
-                        <span class="text-blue-400 font-bold">Twi / Eng Active</span>
+                        <span>Audio PA System</span>
+                        <span class="text-blue-400 font-bold">Twi / Eng Ready</span>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <span>QR POS Slip</span>
-                        <span class="text-slate-400 font-mono-num">80mm + QR</span>
-                    </div>
+                    <button wire:click="testVoice" class="w-full mt-2 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center justify-center space-x-1.5 border border-blue-500/30">
+                        <span>🔊</span>
+                        <span>Test Twi Audio Announcement</span>
+                    </button>
                 </div>
             </aside>
         @endif
@@ -240,6 +240,75 @@
                                     </div>
                                 </div>
                             @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Dedicated Voice & Language Announcements Panel -->
+                    <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 rounded-3xl border border-blue-500/30 shadow-xl shadow-blue-500/5 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-xl shadow-lg shadow-blue-500/20">
+                                    🇬🇭
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-white flex items-center space-x-2">
+                                        <span>Hospital Voice & Multi-Language PA System</span>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">ACTIVE</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-400">Automatic sequential 2-tone hospital chime + English & Ghanaian local language callouts.</p>
+                                </div>
+                            </div>
+
+                            <button wire:click="testVoice" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition flex items-center justify-center space-x-2 shrink-0">
+                                <span class="text-base">🔊</span>
+                                <span>Play Test Announcement</span>
+                            </button>
+                        </div>
+
+                        <!-- Language Option Pills -->
+                        <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80">
+                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Select Language Mode:</span>
+                            <button wire:click="setVoiceStyle('twi_dual')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 {{ $voiceStyle === 'twi_dual' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700/80' }}">
+                                <span>🇬🇭</span>
+                                <span>English + Akan/Twi Dual (Recommended)</span>
+                            </button>
+                            <button wire:click="setVoiceStyle('twi_only')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 {{ $voiceStyle === 'twi_only' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700/80' }}">
+                                <span>🇬🇭</span>
+                                <span>Akan / Twi Only ("Mepaakyɛw...")</span>
+                            </button>
+                            <button wire:click="setVoiceStyle('ga_dual')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 {{ $voiceStyle === 'ga_dual' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700/80' }}">
+                                <span>🇬🇭</span>
+                                <span>English + Ga Dual ("Ofainɛ...")</span>
+                            </button>
+                            <button wire:click="setVoiceStyle('hausa_dual')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 {{ $voiceStyle === 'hausa_dual' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700/80' }}">
+                                <span>🇬🇭</span>
+                                <span>English + Hausa Dual</span>
+                            </button>
+                            <button wire:click="setVoiceStyle('ghanaian_local')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 {{ $voiceStyle === 'ghanaian_local' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700/80' }}">
+                                <span>🇬🇭</span>
+                                <span>Courtesy (Agoo / Medaase)</span>
+                            </button>
+                        </div>
+
+                        <!-- Current Speech Phrasing Live Script Preview -->
+                        <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs font-mono space-y-1">
+                            <div class="text-[10px] text-slate-500 uppercase font-bold">Currently Configured Audio Speech Phrasing:</div>
+                            @if($voiceStyle === 'twi_dual')
+                                <div class="text-blue-300">1. "Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you."</div>
+                                <div class="text-emerald-400">2. "Mepaakyɛw, ticket nɔmba O, P, D, hwee, nnum, nkron. Yɛsrɛ wo kɔ Consultation Room 101. Medaase."</div>
+                            @elseif($voiceStyle === 'twi_only')
+                                <div class="text-emerald-400">"Mepaakyɛw, ticket nɔmba O, P, D, hwee, nnum, nkron. Yɛsrɛ wo kɔ Consultation Room 101. Medaase."</div>
+                            @elseif($voiceStyle === 'ga_dual')
+                                <div class="text-blue-300">1. "Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you."</div>
+                                <div class="text-emerald-400">2. "Ofainɛ, ticket nɔmba O, P, D, 0, 5, 9. Yaa Consultation Room 101. Oyiwaladɔŋŋ."</div>
+                            @elseif($voiceStyle === 'hausa_dual')
+                                <div class="text-blue-300">1. "Attention please. Ticket O, P, D, zero, five, nine. Kindly proceed to Consultation Room 101. Thank you."</div>
+                                <div class="text-emerald-400">2. "Dan Allah, ticket lamba O, P, D, 0, 5, 9. Ka je Consultation Room 101. Na gode."</div>
+                            @elseif($voiceStyle === 'ghanaian_local')
+                                <div class="text-emerald-400">"Agoo! Attention please. Ticket number O, P, D, zero, five, nine. Kindly report to Consultation Room 101. Medaase."</div>
+                            @else
+                                <div class="text-blue-300">"Attention please. Ticket OPD-059. Please proceed to Consultation Room 101."</div>
+                            @endif
                         </div>
                     </div>
 
@@ -721,8 +790,8 @@
                         </div>
 
                         <div class="flex items-center space-x-3">
-                            <!-- TV Voice selector -->
-                            <div class="hidden sm:flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700/80">
+                            <!-- TV Voice selector (Visible on all screens) -->
+                            <div class="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700/80">
                                 <span class="text-xs">🇬🇭</span>
                                 <select wire:model.live="voiceStyle" class="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer">
                                     <option value="twi_dual" class="bg-slate-900 text-white">English + Akan/Twi</option>
@@ -733,7 +802,7 @@
                                     <option value="ghanaian_local" class="bg-slate-900 text-white">Ghanaian Courtesy</option>
                                     <option value="standard" class="bg-slate-900 text-white">Standard</option>
                                 </select>
-                                <button wire:click="testVoice" class="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500 transition">
+                                <button wire:click="testVoice" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500 transition shadow-md shadow-blue-600/30">
                                     🔊 Test
                                 </button>
                             </div>
